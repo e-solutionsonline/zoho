@@ -1,0 +1,45 @@
+
+// ---------------- Header ----------------
+headerData = List();
+headerData.add({"key":"project_name","value":"Project Name"});
+headerData.add({"key":"customer_name","value":"Customer Name"});
+headerData.add({"key":"number_of_payments","value":"Number of Payments","align":"right"});
+headerData.add({"key":"total_amount","value":"Total Amount","align":"right"});
+// ---------------- Details ----------------
+details = Map();
+pid = project.get("project_id");
+cid = project.get("customer_id");
+projName = project.get("project_name");
+details.put("project_name",{"value":projName,"isExternal":true,"link":"https://books.zoho.com/app#/projects/" + pid});
+details.put("customer_name",{"value":project.get("customer_name"),"link":"https://books.zoho.com/app#/contacts/" + cid});
+// ---------------- Fetch customer payments ----------------
+orgId = organization.get("organization_id");
+respPayments = zoho.books.getRecords("customerpayments",orgId,{"customer_id":cid,"page":1,"per_page":200});
+// Initialize
+allPayments = List();
+if(respPayments != null && respPayments.containsKey("customerpayments"))
+{
+	allPayments = respPayments.get("customerpayments");
+}
+// ---------------- Count and sum payments for this project ----------------
+numberOfPayments = 0;
+totalAmount = 0.0;
+for each  pay in allPayments
+{
+	// Check if payment has cf_case_number_unformatted matching project_id
+	if(pay.containsKey("cf_case_number_unformatted") && pay.get("cf_case_number_unformatted") == pid)
+	{
+		numberOfPayments = numberOfPayments + 1;
+		// Add the payment amount
+		if(pay.containsKey("amount"))
+		{
+			totalAmount = totalAmount + pay.get("amount");
+		}
+	}
+}
+details.put("number_of_payments",numberOfPayments);
+details.put("total_amount",totalAmount);
+// ---------------- Wrap for table ----------------
+listData = List();
+listData.add(details);
+return {"header_context":headerData,"data":listData};
