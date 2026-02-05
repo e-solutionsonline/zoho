@@ -1,0 +1,112 @@
+// ---------------- Header ----------------
+headerData = List();
+headerData.add({"key":"project_name","value":"Project Name"});
+headerData.add({"key":"customer_name","value":"Customer Name"});
+headerData.add({"key":"number_of_payments","value":"Number of Payments","align":"right"});
+headerData.add({"key":"total_amount","value":"Total Amount","align":"right"});
+headerData.add({"key":"total_expenses","value":"Total Expenses","align":"right"});
+
+// ---------------- Details ----------------
+details = Map();
+pid = project.get("project_id");
+cid = project.get("customer_id");
+projName = project.get("project_name");
+
+details.put("project_name",{"value":projName,"isExternal":true,"link":"https://books.zoho.com/app#/projects/" + pid});
+details.put("customer_name",{"value":project.get("customer_name"),"link":"https://books.zoho.com/app#/contacts/" + cid});
+
+// ---------------- Fetch customer payments ----------------
+orgId = organization.get("organization_id");
+respPayments = zoho.books.getRecords("customerpayments",orgId,{"customer_id":cid,"page":1,"per_page":200});
+
+allPayments = List();
+if(respPayments != null && respPayments.containsKey("customerpayments"))
+{
+	allPayments = respPayments.get("customerpayments");
+}
+
+// ---------------- Count and sum payments for this project ----------------
+numberOfPayments = 0;
+totalAmount = 0.0;
+
+for each pay in allPayments
+{
+	if(pay.containsKey("cf_case_number_unformatted") && pay.get("cf_case_number_unformatted") == pid)
+	{
+		numberOfPayments = numberOfPayments + 1;
+		if(pay.containsKey("amount"))
+		{
+			totalAmount = totalAmount + pay.get("amount");
+		}
+	}
+}
+
+// ---------------- Fetch expenses with project filter ----------------
+respExpenses = zoho.books.getRecords("expenses",orgId,{"project_id":pid,"page":1,"per_page":200});
+
+allExpenses = List();
+if(respExpenses != null && respExpenses.containsKey("expenses"))
+{
+	allExpenses = respExpenses.get("expenses");
+}
+
+// ---------------- Sum expenses for this project ----------------
+totalExpenses = 0.0;
+
+for each expense in allExpenses
+{
+	if(expense.containsKey("total"))
+	{
+		totalExpenses = totalExpenses + expense.get("total");
+	}
+}
+
+// Format numbers manually with commas
+totalAmountStr = totalAmount.round(2).toString();
+totalExpensesStr = totalExpenses.round(2).toString();
+
+// Simple formatting - add commas for thousands
+if(totalAmount >= 1000)
+{
+	totalAmountStr = totalAmount.round(0).toString();
+	if(totalAmountStr.length() > 3)
+	{
+		// Insert comma from right
+		len = totalAmountStr.length();
+		if(len > 6)
+		{
+			totalAmountStr = totalAmountStr.subString(0,len - 6) + "," + totalAmountStr.subString(len - 6,len - 3) + "," + totalAmountStr.subString(len - 3);
+		}
+		else if(len > 3)
+		{
+			totalAmountStr = totalAmountStr.subString(0,len - 3) + "," + totalAmountStr.subString(len - 3);
+		}
+	}
+}
+
+if(totalExpenses >= 1000)
+{
+	totalExpensesStr = totalExpenses.round(0).toString();
+	if(totalExpensesStr.length() > 3)
+	{
+		len = totalExpensesStr.length();
+		if(len > 6)
+		{
+			totalExpensesStr = totalExpensesStr.subString(0,len - 6) + "," + totalExpensesStr.subString(len - 6,len - 3) + "," + totalExpensesStr.subString(len - 3);
+		}
+		else if(len > 3)
+		{
+			totalExpensesStr = totalExpensesStr.subString(0,len - 3) + "," + totalExpensesStr.subString(len - 3);
+		}
+	}
+}
+
+details.put("number_of_payments",numberOfPayments);
+details.put("total_amount",totalAmountStr);
+details.put("total_expenses",totalExpensesStr);
+
+// ---------------- Wrap for table ----------------
+listData = List();
+listData.add(details);
+
+return {"header_context":headerData,"data":listData};
