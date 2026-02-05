@@ -1,0 +1,172 @@
+// ---------------- Header ----------------
+headerData = List();
+headerData.add({"key":"project_name","value":"Project Name"});
+headerData.add({"key":"customer_name","value":"Customer Name"});
+headerData.add({"key":"rate","value":"Project Rate","align":"right"});
+headerData.add({"key":"number_of_payments","value":"Number of Payments","align":"right"});
+headerData.add({"key":"total_amount","value":"Total Payments","align":"right"});
+headerData.add({"key":"outstanding","value":"Outstanding Payments","align":"right"});
+headerData.add({"key":"total_expenses","value":"Total Expenses","align":"right"});
+headerData.add({"key":"balance","value":"Balance","align":"right"});
+
+// ---------------- Details ----------------
+details = Map();
+pid = project.get("project_id");
+cid = project.get("customer_id");
+projName = project.get("project_name");
+projRate = project.get("rate");
+// Convert projRate to decimal
+if(projRate != null && projRate != "")
+{
+	projRateNum = projRate.toDecimal();
+}
+else
+{
+	projRateNum = 0.0;
+}
+details.put("project_name",{"value":projName,"isExternal":true,"link":"https://books.zoho.com/app#/projects/" + pid});
+details.put("customer_name",{"value":project.get("customer_name"),"link":"https://books.zoho.com/app#/contacts/" + cid});
+// ---------------- Fetch customer payments ----------------
+orgId = organization.get("organization_id");
+respPayments = zoho.books.getRecords("customerpayments",orgId,{"customer_id":cid,"page":1,"per_page":200});
+allPayments = List();
+if(respPayments != null && respPayments.containsKey("customerpayments"))
+{
+	allPayments = respPayments.get("customerpayments");
+}
+// ---------------- Count and sum payments for this project ----------------
+numberOfPayments = 0;
+totalAmount = 0.0;
+for each  pay in allPayments
+{
+	if(pay.containsKey("cf_case_number_unformatted") && pay.get("cf_case_number_unformatted") == pid)
+	{
+		numberOfPayments = numberOfPayments + 1;
+		if(pay.containsKey("amount"))
+		{
+			totalAmount = totalAmount + pay.get("amount");
+		}
+	}
+}
+// ---------------- Fetch expenses with project filter ----------------
+respExpenses = zoho.books.getRecords("expenses",orgId,{"project_id":pid,"page":1,"per_page":200});
+allExpenses = List();
+if(respExpenses != null && respExpenses.containsKey("expenses"))
+{
+	allExpenses = respExpenses.get("expenses");
+}
+// ---------------- Sum expenses for this project ----------------
+totalExpenses = 0.0;
+for each  expense in allExpenses
+{
+	if(expense.containsKey("total"))
+	{
+		totalExpenses = totalExpenses + expense.get("total");
+	}
+}
+// ---------------- Calculate Outstanding and Balance ----------------
+outstanding = projRateNum - totalAmount;
+balance = totalAmount - totalExpenses;
+
+// Format project rate
+projRateStr = projRateNum.round(2).toString();
+if(projRateNum >= 1000)
+{
+	projRateStr = projRateNum.round(0).toString();
+	if(projRateStr.length() > 3)
+	{
+		len = projRateStr.length();
+		if(len > 6)
+		{
+			projRateStr = projRateStr.subString(0,len - 6) + "," + projRateStr.subString(len - 6,len - 3) + "," + projRateStr.subString(len - 3);
+		}
+		else if(len > 3)
+		{
+			projRateStr = projRateStr.subString(0,len - 3) + "," + projRateStr.subString(len - 3);
+		}
+	}
+}
+// Format total amount
+totalAmountStr = totalAmount.round(2).toString();
+if(totalAmount >= 1000)
+{
+	totalAmountStr = totalAmount.round(0).toString();
+	if(totalAmountStr.length() > 3)
+	{
+		len = totalAmountStr.length();
+		if(len > 6)
+		{
+			totalAmountStr = totalAmountStr.subString(0,len - 6) + "," + totalAmountStr.subString(len - 6,len - 3) + "," + totalAmountStr.subString(len - 3);
+		}
+		else if(len > 3)
+		{
+			totalAmountStr = totalAmountStr.subString(0,len - 3) + "," + totalAmountStr.subString(len - 3);
+		}
+	}
+}
+// Format total expenses
+totalExpensesStr = totalExpenses.round(2).toString();
+if(totalExpenses >= 1000)
+{
+	totalExpensesStr = totalExpenses.round(0).toString();
+	if(totalExpensesStr.length() > 3)
+	{
+		len = totalExpensesStr.length();
+		if(len > 6)
+		{
+			totalExpensesStr = totalExpensesStr.subString(0,len - 6) + "," + totalExpensesStr.subString(len - 6,len - 3) + "," + totalExpensesStr.subString(len - 3);
+		}
+		else if(len > 3)
+		{
+			totalExpensesStr = totalExpensesStr.subString(0,len - 3) + "," + totalExpensesStr.subString(len - 3);
+		}
+	}
+}
+// Format outstanding
+outstandingStr = outstanding.round(2).toString();
+if(outstanding >= 1000)
+{
+	outstandingStr = outstanding.round(0).toString();
+	if(outstandingStr.length() > 3)
+	{
+		len = outstandingStr.length();
+		if(len > 6)
+		{
+			outstandingStr = outstandingStr.subString(0,len - 6) + "," + outstandingStr.subString(len - 6,len - 3) + "," + outstandingStr.subString(len - 3);
+		}
+		else if(len > 3)
+		{
+			outstandingStr = outstandingStr.subString(0,len - 3) + "," + outstandingStr.subString(len - 3);
+		}
+	}
+}
+// Format balance
+balanceStr = balance.round(2).toString();
+if(balance >= 1000)
+{
+	balanceStr = balance.round(0).toString();
+	if(balanceStr.length() > 3)
+	{
+		len = balanceStr.length();
+		if(len > 6)
+		{
+			balanceStr = balanceStr.subString(0,len - 6) + "," + balanceStr.subString(len - 6,len - 3) + "," + balanceStr.subString(len - 3);
+		}
+		else if(len > 3)
+		{
+			balanceStr = balanceStr.subString(0,len - 3) + "," + balanceStr.subString(len - 3);
+		}
+	}
+}
+
+details.put("rate",projRateStr);
+details.put("number_of_payments",numberOfPayments);
+details.put("total_amount",totalAmountStr);
+details.put("outstanding",outstandingStr);
+details.put("total_expenses",totalExpensesStr);
+details.put("balance",balanceStr);
+
+// ---------------- Wrap for table ----------------
+listData = List();
+listData.add(details);
+return {"header_context":headerData,"data":listData};
