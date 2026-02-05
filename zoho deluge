@@ -1,0 +1,2 @@
+**to get the log in console
+info "Customer ID: " + cid;
