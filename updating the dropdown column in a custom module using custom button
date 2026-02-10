@@ -1,0 +1,36 @@
+
+resultMap = Map();
+try 
+{
+	info "Starting status update...";
+	// Get organization
+	orgId = organization.get("organization_id");
+	info "Organization ID: " + orgId;
+	// Get record ID - CORRECT FIELD NAME
+	recordId = cm_in.get("module_record_id");
+	info "Record ID: " + recordId;
+	// Update status to Paid
+	updateMap = Map();
+	updateMap.put("cf_payment_status","Paid");
+	response = zoho.books.updateRecord("cm_in",orgId,recordId,updateMap);
+	info "Update Response: " + response;
+	if(response != null && response.get("code") == 0)
+	{
+		info "Status updated to Paid successfully!";
+		resultMap.put("status","success");
+		resultMap.put("message","Payment status updated to Paid");
+	}
+	else
+	{
+		info "Update failed: " + response;
+		resultMap.put("status","error");
+		resultMap.put("message","Update failed");
+	}
+}
+catch (e)
+{
+	info "Exception: " + e;
+	resultMap.put("status","error");
+	resultMap.put("message",e);
+}
+return resultMap;
