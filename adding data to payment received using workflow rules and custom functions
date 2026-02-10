@@ -1,0 +1,78 @@
+
+// ======================================================
+// This code is to put in Custom Functions and will run using custom rules.
+// GET DATA FROM CUSTOM MODULE (cm_in parameter)
+// ======================================================
+info "Custom Module Data: " + cm_in;
+// ======================================================
+// EXTRACT FIELD VALUES FROM cm_in
+// ======================================================
+// Customer ID
+customerId = cm_in.get("cf_customers");
+customerName = cm_in.get("cf_customers_formatted");
+info "Customer ID: " + customerId;
+info "Customer Name: " + customerName;
+// Case Number
+caseNumber = cm_in.get("cf_case_number_formatted");
+info "Case Number: " + caseNumber;
+// Payment Mode
+paymentMode = cm_in.get("cf_payment_mode");
+info "Payment Mode: " + paymentMode;
+// Amount - From the table data
+tableData = cm_in.get("cf_cm_table_1");
+amountPaid = 0;
+if(tableData != null && tableData.size() > 0)
+{
+	firstRow = tableData.get(0);
+	amountPaid = firstRow.get("cf_amount_1");
+}
+info "Amount: " + amountPaid;
+// Other fields
+paymentDate = zoho.currentdate.toString("yyyy-MM-dd");
+orgId = organization.get("organization_id");
+info "Organization ID: " + orgId;
+// ======================================================
+// CREATE PAYMENT MAP (NO CUSTOM FIELDS)
+// ======================================================
+paymentMap = Map();
+paymentMap.put("customer_id",customerId);
+paymentMap.put("amount",amountPaid);
+paymentMap.put("date",paymentDate);
+paymentMap.put("payment_mode",paymentMode);
+paymentMap.put("reference_number",caseNumber);
+paymentMap.put("bank_charges",0);
+paymentMap.put("description","Payment for Case: " + caseNumber);
+info "Payment Map: " + paymentMap;
+// ======================================================
+// CREATE PAYMENT RECEIVED IN ZOHO BOOKS
+// ======================================================
+response = zoho.books.createRecord("customerpayments",orgId,paymentMap);
+// ======================================================
+// LOG RESULT & VALIDATION
+// ======================================================
+if(response.get("code") == 0)
+{
+	paymentId = response.get("payment").get("payment_id");
+	info "Payment created successfully!";
+	info "Payment ID: " + paymentId;
+	// ======================================================
+	// UPDATE CM_IN STATUS TO PAID
+	// ======================================================
+	recordId = cm_in.get("module_record_id");
+	updateMap = Map();
+	updateMap.put("cf_payment_status","Paid");
+	updateResponse = zoho.books.updateRecord("cm_in",orgId,recordId,updateMap);
+	if(updateResponse.get("code") == 0)
+	{
+		info "Status updated to Paid successfully!";
+	}
+	else
+	{
+		info "Error updating status: " + updateResponse;
+	}
+}
+else
+{
+	info "Error creating payment: " + response;
+}
+info "Final Response: " + response;
