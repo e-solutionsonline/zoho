@@ -1,0 +1,148 @@
+
+// ======================================================
+// GRAPH API CONFIGURATION
+// ======================================================
+tenantId = "";
+clientId = "";
+clientSecret = "";
+siteId = "";
+listId = "";
+// ======================================================
+// ---------------- Core Project Data ------------------
+// ======================================================
+pid = project.get("project_id");
+cid = project.get("customer_id");
+projName = project.get("project_name");
+customerName = project.get("customer_name");
+orgId = organization.get("organization_id");
+// ======================================================
+// DUPLICATE PREVENTION
+// ======================================================
+if(project.get("cf_pushed_to_sharepoint") == true)
+{
+	return;
+}
+// ======================================================
+// ---------------- Fetch Customer Payments -------------
+// ❗ DO NOT FILTER BY customer_id
+// ======================================================
+respPayments = zoho.books.getRecords("customerpayments",orgId,{"page":1,"per_page":200});
+allPayments = List();
+if(respPayments != null && respPayments.containsKey("customerpayments"))
+{
+	allPayments = respPayments.get("customerpayments");
+}
+numberOfPayments = 0;
+totalAmount = 0.0;
+// ======================================================
+// ---------------- Match Payments to Project -----------
+// ======================================================
+for each  pay in allPayments
+{
+	caseNum = "";
+	if(pay.containsKey("custom_fields"))
+	{
+		for each  cf in pay.get("custom_fields")
+		{
+			// ✅ USE api_name (NOT label)
+			if(cf.get("api_name") == "cf_case_number_unformatted")
+			{
+				caseNum = cf.get("value");
+				break;
+			}
+		}
+	}
+	// Compare as string
+	if(caseNum != "" && caseNum == pid.toString())
+	{
+		numberOfPayments = numberOfPayments + 1;
+		if(pay.containsKey("amount"))
+		{
+			totalAmount = totalAmount + pay.get("amount").toDecimal();
+		}
+	}
+}
+// ======================================================
+// ---------------- Fetch Expenses ---------------------
+// ======================================================
+respExpenses = zoho.books.getRecords("expenses",orgId,{"project_id":pid,"page":1,"per_page":200});
+allExpenses = List();
+if(respExpenses != null && respExpenses.containsKey("expenses"))
+{
+	allExpenses = respExpenses.get("expenses");
+}
+// ======================================================
+// ---------------- Sum Expenses -----------------------
+// ======================================================
+totalExpenses = 0.0;
+for each  expense in allExpenses
+{
+	if(expense.containsKey("amount"))
+	{
+		totalExpenses = totalExpenses + expense.get("amount").toDecimal();
+	}
+}
+// ======================================================
+// ---------------- Calculations ----------------------
+// ======================================================
+projRateNum = 0.0;
+if(project.containsKey("Rate") && project.get("Rate") != null && project.get("Rate") != "")
+{
+	projRateNum = project.get("Rate").toDecimal();
+}
+outstanding = projRateNum - totalAmount;
+balance = totalAmount - totalExpenses;
+// ======================================================
+// ---------------- Get SharePoint Token ----------------
+// ======================================================
+paramsMap = Map();
+paramsMap.put("grant_type","client_credentials");
+paramsMap.put("client_id",clientId);
+paramsMap.put("client_secret",clientSecret);
+paramsMap.put("scope","https://graph.microsoft.com/.default");
+tokenResp = invokeurl
+[
+	url :"https://login.microsoftonline.com/" + tenantId + "/oauth2/v2.0/token"
+	type :POST
+	parameters:paramsMap
+];
+if(!tokenResp.containsKey("access_token"))
+{
+	info "Failed to get token: " + tokenResp;
+	return;
+}
+accessToken = tokenResp.get("access_token");
+// ======================================================
+// ---------------- Push Data to SharePoint ------------
+// ======================================================
+spFields = Map();
+spFields.put("Title",projName);
+spFields.put("pid",pid.toString());
+spFields.put("CustomerName",customerName);
+spFields.put("ProjectRate",projRateNum);
+spFields.put("NoOfPayments",numberOfPayments);
+spFields.put("TotalPayments",totalAmount);
+spFields.put("OutstandingPayments",outstanding);
+spFields.put("TotalExpenses",totalExpenses);
+spFields.put("Balance",balance);
+spBody = Map();
+spBody.put("fields",spFields);
+jsonBody = spBody.toString();
+spResp = invokeurl
+[
+	url :"https://graph.microsoft.com/v1.0/sites/" + siteId + "/lists/" + listId + "/items"
+	type :POST
+	parameters:jsonBody
+	headers:{"Authorization":"Bearer " + accessToken,"Content-Type":"application/json"}
+];
+info "SharePoint Response: " + spResp;
+// ======================================================
+// ---------------- Mark Project as Synced --------------
+// ======================================================
+if(spResp.containsKey("id"))
+{
+	updateMap = Map();
+	updateMap.put("cf_pushed_to_sharepoint",true);
+	zoho.books.updateRecord("projects",orgId,pid,updateMap);
+	info "✅ Successfully pushed to SharePoint";
+}
