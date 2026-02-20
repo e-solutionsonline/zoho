@@ -1,0 +1,112 @@
+
+resultMap = Map();
+try 
+{
+	info "===== START CUSTOM BUTTON PAYMENT PROCESS =====";
+	// ======================================================
+	// ORGANIZATION
+	// ======================================================
+	orgId = organization.get("organization_id");
+	info "Organization ID: " + orgId;
+	// ======================================================
+	// RECORD ID
+	// ======================================================
+	recordId = cm_in.get("module_record_id");
+	info "Record ID: " + recordId;
+	// ======================================================
+	// EXTRACT CUSTOMER
+	// ======================================================
+	customerField = cm_in.get("cf_customers");
+	customerId = null;
+	if(customerField != null)
+	{
+		// Some cases: customerField may be a map or just an ID
+		try 
+		{
+			customerId = customerField.get("customer_id");
+		}
+		catch (e)
+		{
+			customerId = customerField;
+		}
+	}
+	customerName = cm_in.get("cf_customers_formatted");
+	caseNumber = cm_in.get("cf_case_number_formatted");
+	paymentMode = cm_in.get("cf_payment_mode");
+	// ======================================================
+	// GET AMOUNT FROM TABLE
+	// ======================================================
+	tableData = cm_in.get("cf_cm_table_1");
+	amountPaid = 0;
+	if(tableData != null && tableData.size() > 0)
+	{
+		firstRow = tableData.get(0);
+		amountPaid = ifnull(firstRow.get("cf_amount_1"),0);
+	}
+	if(amountPaid == 0)
+	{
+		info "Amount is zero. Payment skipped.";
+		resultMap.put("status","error");
+		resultMap.put("message","Amount is zero. Payment not created");
+		return resultMap;
+	}
+	paymentDate = zoho.currentdate.toString("yyyy-MM-dd");
+	info "Customer ID: " + customerId + " | Amount: " + amountPaid + " | Case: " + caseNumber;
+	// ======================================================
+	// CREATE PAYMENT MAP
+	// ======================================================
+	paymentMap = Map();
+	paymentMap.put("customer_id",customerId);
+	paymentMap.put("amount",amountPaid);
+	paymentMap.put("date",paymentDate);
+	paymentMap.put("payment_mode",paymentMode);
+	paymentMap.put("reference_number",caseNumber);
+	paymentMap.put("bank_charges",0);
+	paymentMap.put("description","Payment for Case: " + caseNumber);
+	info "Payment Map: " + paymentMap;
+	// ======================================================
+	// CREATE CUSTOMER PAYMENT
+	// ======================================================
+	paymentResponse = zoho.books.createRecord("customerpayments",orgId.toLong(),paymentMap);
+	info "Payment Creation Response: " + paymentResponse;
+	if(paymentResponse.get("code") == 0)
+	{
+		paymentId = paymentResponse.get("payment").get("payment_id");
+		info "Payment created successfully! Payment ID: " + paymentId;
+		// ======================================================
+		// UPDATE STATUS TO PAID
+		// ======================================================
+		updateMap = Map();
+		updateMap.put("cf_payment_status","Paid");
+		updateResponse = zoho.books.updateRecord("cm_in",orgId.toLong(),recordId.toLong(),updateMap);
+		info "Update CM Status Response: " + updateResponse;
+		if(updateResponse.get("code") == 0)
+		{
+			info "CM status updated to Paid successfully!";
+			resultMap.put("status","success");
+			resultMap.put("message","Payment created and status updated");
+			resultMap.put("paymentId",paymentId);
+		}
+		else
+		{
+			info "Error updating CM status: " + updateResponse;
+			resultMap.put("status","error");
+			resultMap.put("message","Payment created but status update failed");
+			resultMap.put("paymentId",paymentId);
+		}
+	}
+	else
+	{
+		info "Error creating payment: " + paymentResponse;
+		resultMap.put("status","error");
+		resultMap.put("message","Payment creation failed");
+	}
+}
+catch (e)
+{
+	info "Exception: " + e;
+	resultMap.put("status","error");
+	resultMap.put("message",e.toString());
+}
+info "===== END CUSTOM BUTTON PAYMENT PROCESS =====";
+return resultMap;
